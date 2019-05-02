@@ -23,37 +23,50 @@ namespace NetduinoApplication2
 {
     public class Program
     {
-        public static SerialPort sp;
+        private static byte[] msg;
+        private static String donnee;
+        private static bool compteur = false;
+        private static OutputPort led = new OutputPort(Pins.ONBOARD_LED, false);
+        private static Mfrc522 mfrc = new Mfrc522(SPI.SPI_module.SPI1, Pins.GPIO_PIN_D9, Pins.GPIO_PIN_D10);
+        private static Uid idCarte; // pour récupérer la valeur retour avec la méthode ReadUid()
+
+        protected static SerialPort sp = new SerialPort("COM1", 9600, Parity.None, 8, StopBits.One);
         public static void Main()
         {
-            var led = new OutputPort(Pins.ONBOARD_LED, false);
-            var mfrc = new Mfrc522(SPI.SPI_module.SPI1, Pins.GPIO_PIN_D9, Pins.GPIO_PIN_D10);
-            sp = new SerialPort("COM1", 9600, Parity.None, 8, StopBits.One); // création du port série
-            sp.Open(); // ouverture du port série
-
             // Request
             while (true)
             {
                 mfrc.HaltTag(); //envoie la commande halt au capteur RFID pour éviter qu'il le lise pleins de fois
-
-                if(mfrc.IsTagPresent()) //Verifie si il y a une carte devant le capteur
+                if (mfrc.IsTagPresent()) //Verifie si il y a une carte devant le capteur
                 {
                     led.Write(true);
-                    Uid idCarte; // pour récupérer la valeur retour avec la méthode ReadUid()
                     idCarte = mfrc.ReadUid();
-                    Debug.Print(idCarte.GetHashCode() + "\n");
-                    byte[] msg = Encoding.UTF8.GetBytes(idCarte.GetHashCode().ToString()); // conserve dans une variable byte[] la chaîne de caractère "yop" après transformation en byte
-                    sp.Write(msg, 0, msg.Length); // envoie le message yop
-
-                    sp.Flush();
+                    if (idCarte.GetHashCode().ToString().Length == 9) //si l'identifiant est complet lors de la lecture
+                    {
+                        donnee = idCarte.GetHashCode().ToString(); //enregistre ID
+                        msg = Encoding.UTF8.GetBytes(donnee); // conserve dans une variable byte[] la chaîne de caractère après transformation en byte
+                        compteur = true;
+                    }
                 }
                 else
                 {
                     led.Write(false);
+                    Affiche(msg);
+                    compteur = false;
                 }
             }
         }
+        private static void Affiche(byte[] data) //fonction qui affiche l'ID dans la console
+        {
+            if (compteur == true) //affichage des données quand "compteur" prend la valeur "true" au niveau de la détection
+            {
+                sp.Open(); // ouverture du port série
+                Debug.Print(donnee);
+                sp.Write(msg, 0, msg.Length); // envoie le message yop
+                sp.Flush();
+                sp.Close();
+            }
+        }
     }
-
 }
 
